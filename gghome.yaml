@@ -1,0 +1,13 @@
+# Config file for SyncFileUtility 2x PCs using a removable transfer device
+
+localworkspace: c:\Users\Gavin\6Saxon\junk\Sync01\LocalA\PcSyncWkSp
+removableworkspace: c:\Users\Gavin\6Saxon\junk\Sync01\LocalA\Removable
+
+roots:
+- include:
+    c:\Users\Gavin\6Saxon\junk
+
+  excludes:
+    - c:\Users\Gavin\6Saxon\junk\Sync01
+#        - c:\Users\Gavin\6Saxon\junk
+
