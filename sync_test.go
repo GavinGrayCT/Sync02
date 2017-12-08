@@ -48,11 +48,11 @@ func TestConfig1(t *testing.T) {
 		log.Trace.Printf("Config is %s", theConf)
 		log.Trace.Printf("Local Workspace is %s\n", theConf.LocalWorkspace)
 		log.Trace.Printf("Removable Workspace is %s\n", theConf.RemovableWorkspace)
-		for r := range theConf.Roots {
-			log.Trace.Printf("Includes %s\n", theConf.Roots[r].Include)
-			for i := range theConf.Roots[r].Excludes {
+		for r := range theConf.LocalRoots {
+			log.Trace.Printf("Includes %s\n", theConf.LocalRoots[r].Include)
+			for i := range theConf.LocalRoots[r].Excludes {
 				log.Trace.Printf("Type of exclude is %T\n", i)
-				log.Trace.Printf("Excludes %s\n", theConf.Roots[r].Excludes[i])
+				log.Trace.Printf("Excludes %s\n", theConf.LocalRoots[r].Excludes[i])
 			}
 		}
 	}

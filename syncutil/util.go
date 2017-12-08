@@ -15,13 +15,13 @@ import (
 type afile struct {
 	Name     string
 	Size     int64
-	ModeDate time.Time
+	FModDate time.Time
 }
 
 type Dir struct {
 	Path     string
 	Files    map[string]afile
-	ModeDate time.Time
+	DModDate time.Time
 }
 
 var defaultFormat = "2006-01-02 15:04:05.000"
@@ -47,28 +47,30 @@ func CheckExclude(pathfile string, excludes []string) (bool, string, error) {
 }
 
 func (aVisitor visitor) visit(path string, f os.FileInfo, err error) error {
+	path = filepath.ToSlash(path)
 	log.Trace.Printf("Visiting: %s  name: %s  size:%d modified:%s isDir:%t\n", path, f.Name(), f.Size(), f.ModTime().Format(defaultFormat), f.IsDir())
-	steps := strings.Split(path, string(filepath.Separator))
+	steps := strings.Split(path, string("/"))
 	log.Trace.Println("Steps are: ", steps)
 
 	// Check if not excluded
 	if excluded, _, _ := CheckExclude(path, aVisitor.excludes); !excluded {
 		if f.IsDir() {
 			if aDir, ok := aVisitor.aDirMap[path]; !ok {
-				log.Trace.Printf("Adding %s to dirMap\n", path)
+				log.Trace.Printf("Adding dir %s to dirMap\n", path)
 				aDir = new(Dir)
 				aDir.Path = path
 				aDir.Files = make(map[string]afile)
-				aDir.ModeDate = f.ModTime()
+				aDir.DModDate = f.ModTime()
 				aVisitor.aDirMap[path] = aDir
 			} else {
 				log.Trace.Printf("Existing dir %s", path)
 			}
 		} else {
-			theDirname := filepath.Dir(path)
+			theDirname := filepath.ToSlash(filepath.Dir(path))
 			afile := afile{f.Name(), f.Size(), f.ModTime()}
+			log.Trace.Printf("Adding file %s to dir %s\n", afile, theDirname)
 			if _, ok := aVisitor.aDirMap[theDirname].Files[afile.Name]; !ok {
-				log.Trace.Printf("Adding %s to dir %s\n", f.Name(), theDirname)
+				log.Trace.Printf("Adding %s (size %d,  ModTime %s) to dir %s\n", f.Name(), f.Size(), f.ModTime(), theDirname)
 				aVisitor.aDirMap[theDirname].Files[afile.Name] = afile
 			} else {
 				log.Fatal.Printf("Existing file: %s in %s\n", f.Name(), theDirname)
@@ -95,14 +97,37 @@ func StoreDirMap(pathfile string, aDirMap DirMap) error {
 
 func CompDirMap(aDirMap DirMap, bDirMap DirMap) bool {
 	log.Trace.Println("Comparing 2x dirMap")
+	if checkContainsDirMap(aDirMap, bDirMap) {
+		log.Trace.Printf("A contains B")
+		if checkContainsDirMap(bDirMap, aDirMap) {
+			log.Trace.Printf("and B contains A - so equal")
+			return true
+		}
+	}
+	return false
+}
+
+func checkContainsDirMap(aDirMap DirMap, bDirMap DirMap) bool {
+	log.Trace.Println("Checking 'Contains Criteria'")
 	for _, aDir := range aDirMap {
 		if bDir, ok := bDirMap[aDir.Path]; ok {
 			for _, aFile := range aDir.Files {
-				if _, ok := bDir.Files[aFile.Name]; !ok {
+				bFile, ok := bDir.Files[aFile.Name]
+				if !ok {
+					log.Trace.Printf("Within %s, A file '%s' exists and B file '%s' does not exist\n", aDir.Path, aFile.Name, aFile.Name)
+					return false
+				}
+				if aFile.Size != bFile.Size {
+					log.Trace.Printf("Different sizes. ", aFile.Name, ":", aFile.Size, "  ", bFile.Name, ":", bFile.Size)
+					return false
+				}
+				if !aFile.FModDate.Equal(bFile.FModDate) {
+					log.Trace.Printf("Different ModDates. ", aFile.Name, ":", aFile.FModDate, "  ", bFile.Name, ":", bFile.FModDate)
 					return false
 				}
 			}
 		} else {
+			log.Trace.Printf("A dir '%s' exists, B dir '%s' does not exist\n", aDir.Path, aDir.Path)
 			return false
 		}
 

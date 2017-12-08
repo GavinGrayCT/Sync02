@@ -15,14 +15,15 @@ func main() {
 
 	// Read config
 	var err error
-	theConf, err = su.GetTheConf("gghome.yaml")
-	if err != nil {
-		log.Fatal.Println("Fatal Error getting config: ", err)
-	}
 
 	// Fill data structures
 	// Local Current Dir Map
-	theSyncData, err = su.FillData(theConf)
+	theSyncData, err = su.FillSyncData("theConf.json")
+	if err != nil {
+		log.Fatal.Printf("Error Filling SyncData %v", err)
+	}
+	su.StoreSync(&theSyncData.CurrentLocalSync, "WrittenCurrentLocalSync")
 	log.Trace.Println("Filled sync data")
+	log.Trace.Println("Finished SyncFileUtility")
 }
 
