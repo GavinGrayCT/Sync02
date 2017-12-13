@@ -14,11 +14,21 @@ type Sync struct {
 }
 
 type SyncData struct {
-	TheConf              *Conf
-	CurrentLocalSync     Sync
-	LastLocalSync        Sync
-	CurrentRemovableSync Sync
-	LastRemovableSync    Sync
+	TheConf                  Conf
+	CurrentLocalSync         Sync
+	LastLocalSync            Sync
+	CurrentRemovableSync     Sync
+	LocalLastSyncOnRemovable Sync
+	OtherLastSyncOnRemovable Sync
+}
+
+type FileStates struct {
+	cld  *Dir  // current local Dir
+	clf  Afile // current local File
+	llf  Afile // last local File
+	llrf Afile // last local on removable File
+	crf  Afile // current on removable File
+	lorf Afile // last other on removable File
 }
 
 func check(err error, m string) {
@@ -30,41 +40,41 @@ func check(err error, m string) {
 func FillSyncData(configPathFile string) (*SyncData, error) {
 	var err error
 	var TheSyncData SyncData
-	TheSyncData.TheConf, err = GetTheConf(configPathFile)
+	TheSyncData.TheConf.GetTheConf(configPathFile)
 	check(err, "Fatal Error getting config")
 
-	err = fillCurrentLocalSync(TheSyncData.TheConf.Hostname, TheSyncData.TheConf.LocalRoots, &TheSyncData.CurrentLocalSync)
+	err = fillCurrentSync(TheSyncData.TheConf.Hostname, TheSyncData.TheConf.LocalRoot, &TheSyncData.CurrentLocalSync)
 	check(err, "Fatal Error filling CurrentLocalSync")
 
 	err = readSyncFromFile(TheSyncData.TheConf.LocalWorkspace+"/"+"LastLocalSync.json", &TheSyncData.LastLocalSync)
 	check(err, "Fatal Error reading LastLocalSync.json")
 
-	err = fillCurrentLocalSync(TheSyncData.TheConf.Hostname, TheSyncData.TheConf.RemovableRoots, &TheSyncData.CurrentRemovableSync)
+	err = fillCurrentSync(TheSyncData.TheConf.Hostname, Root{TheSyncData.TheConf.RemovableRoot, []string{}}, &TheSyncData.CurrentRemovableSync)
 	check(err, "Fatal Error filling CurrentRemovableSync")
 
-	err = readSyncFromFile(TheSyncData.TheConf.RemovableWorkspace+"/"+"LastRemovableSync.json", &TheSyncData.LastRemovableSync)
-	check(err, "Fatal Error reading LastRemovableSync.json")
+	err = readSyncFromFile(TheSyncData.TheConf.RemovableWorkspace+"/"+TheSyncData.TheConf.Hostname+"LastSyncOnRemovable.json", &TheSyncData.LocalLastSyncOnRemovable)
+	check(err, "Fatal Error reading LastSyncOnRemovable.json for host "+TheSyncData.TheConf.Hostname)
+
+	err = readSyncFromFile(TheSyncData.TheConf.RemovableWorkspace+"/"+TheSyncData.TheConf.OtherHostname+"LastSyncOnRemovable.json", &TheSyncData.OtherLastSyncOnRemovable)
+	check(err, "Fatal Error reading LastSyncOnRemovable.json for host "+TheSyncData.TheConf.OtherHostname)
 
 	if compare2Sync(TheSyncData.CurrentLocalSync, TheSyncData.LastLocalSync) {
 		log.Trace.Println("Current and Last Local Syncs are identical")
 	} else {
 		log.Trace.Println("Current and Last Local Syncs are different")
-
 	}
 
 	return &TheSyncData, err
 }
 
-func fillCurrentLocalSync(hostname string, Roots []Root, theSync *Sync) error {
+func fillCurrentSync(hostname string, Root Root, theSync *Sync) error {
 	var err error
 	theSync.Hostname = hostname
 	theSync.TheDirMap = make(map[string]*Dir)
-	for r := range Roots {
-
-		err = FillDirMap(&(Roots[r].Include), Roots[r].Excludes, theSync.TheDirMap)
-		if err != nil {
-			log.Fatal.Println("Fatal error filling Local Current Dirmap. Error is:", err)
-		}
+	aRootedDirMap := RootedDirMap{Root.Include, Root.Excludes, theSync.TheDirMap}
+	err = FillDirMap(aRootedDirMap)
+	if err != nil {
+		log.Fatal.Println("Fatal error filling Local Current Dirmap. Error is:", err)
 	}
 	theSync.SyncTime = time.Now()
 	return err
@@ -84,12 +94,6 @@ func StoreSync(theSync *Sync, pathFile string) error {
 	return err
 }
 
-func writeConfJson(theConf *Conf) {
-	j, err := json.MarshalIndent(theConf, "", "   ")
-	err = ioutil.WriteFile("theConf.json", j, 0644)
-	log.Trace.Println("Written json. Error is: ", err)
-}
-
 func compare2Sync(syncA, syncB Sync) (eq bool) {
 	eq = false
 	log.Trace.Printf("syncA hostname %s,  SyncB hostname %s\n", syncA.Hostname, syncB.Hostname)
@@ -100,4 +104,69 @@ func compare2Sync(syncA, syncB Sync) (eq bool) {
 		}
 	}
 	return eq
+}
+
+func ProcessSyncData(theSyncData *SyncData) {
+	log.Trace.Println("Starting ProcessSyncData")
+	var fs FileStates
+	for _, aCLD := range theSyncData.CurrentLocalSync.TheDirMap {
+		log.Trace.Println("Dir: ", aCLD.Path)
+		for _, aCLF := range aCLD.Files {
+			log.Trace.Println("File: ", aCLF.Name, "  FModDate:", aCLF.FModDate, "  Size:", aCLF.Size, "  Present:", aCLF.Present)
+			fs.populate(aCLD, aCLF, theSyncData)
+			// now process fs
+			AddCommand(aCLD, &fs)
+		}
+	}
+}
+
+func (fs *FileStates) populate(cld *Dir, clf Afile, theSyncData *SyncData) {
+	var ok bool
+	fs.cld = cld
+	fs.clf = clf
+	log.Trace.Println("fs.cld.RelPath:", fs.cld.RelPath, "fs.clf.Name:", fs.clf.Name)
+	fs.llf, ok = theSyncData.LastLocalSync.TheDirMap[fs.cld.RelPath].Files[fs.clf.Name]
+	if !ok {
+		fs.llf = Afile{fs.clf.Name, 0, time.Now(), false}
+	}
+
+	var llrd *Dir
+	llrd, ok = theSyncData.LocalLastSyncOnRemovable.TheDirMap[fs.cld.RelPath]
+	if ok {
+		fs.llrf, ok = llrd.Files[fs.clf.Name]
+		if !ok {
+			fs.llrf = Afile{fs.clf.Name, 0, time.Now(), false}
+		} else {
+			log.Trace.Println("llrf --- File: ", fs.llrf.Name, "  FModDate:", fs.llrf.FModDate, "  Size:", fs.llrf.Size, "  Present:", fs.llrf.Present)
+		}
+	} else {
+		log.Trace.Printf("Dir %s does not exist in theSyncData.LocalLastSyncOnRemovable.TheDirMap\n", fs.cld.RelPath)
+	}
+
+	var crd *Dir
+	crd, ok = theSyncData.CurrentRemovableSync.TheDirMap[fs.cld.RelPath]
+	if ok {
+		fs.crf, ok = crd.Files[fs.clf.Name]
+		if !ok {
+			fs.crf = Afile{fs.clf.Name, 0, time.Now(), false}
+		} else {
+			log.Trace.Printf("Dir %s does not exist in theSyncData.LocalLastSyncOnRemovable.TheDirMap\n", fs.cld.RelPath)
+		}
+
+		var lord *Dir
+		lord, ok = theSyncData.OtherLastSyncOnRemovable.TheDirMap[fs.cld.RelPath]
+		if ok {
+			fs.lorf, ok = lord.Files[fs.clf.Name]
+			if !ok {
+				log.Trace.Printf("lorf %s does not exist in theSyncData.OtherLastSyncOnRemovable.TheDirMap dir %s\n", fs.clf.Name, fs.cld.RelPath)
+				fs.lorf = Afile{fs.clf.Name, 0, time.Now(), false}
+			} else {
+				log.Trace.Printf("lorf %s does exist in theSyncData.OtherLastSyncOnRemovable.TheDirMap dir %s\n", fs.clf.Name, fs.cld.RelPath)
+			}
+		} else {
+			log.Trace.Printf("Dir %s does not exist in theSyncData.OtherLastSyncOnRemovable.TheDirMap\n", fs.cld.RelPath)
+		}
+
+		log.Trace.Println("FileStates: ", fs)
+	}
 }

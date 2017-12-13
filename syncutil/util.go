@@ -12,25 +12,29 @@ import (
 	"regexp"
 )
 
-type afile struct {
+type Afile struct {
 	Name     string
 	Size     int64
 	FModDate time.Time
+	Present  bool
 }
 
 type Dir struct {
 	Path     string
-	Files    map[string]afile
+	RelPath string
+	Files    map[string]Afile
 	DModDate time.Time
+	Present  bool
 }
 
 var defaultFormat = "2006-01-02 15:04:05.000"
 
 type DirMap map[string]*Dir
 
-type visitor struct {
-	aDirMap DirMap
+type RootedDirMap struct {
+	rootDir  string
 	excludes []string
+	aDirMap  DirMap
 }
 
 func CheckExclude(pathfile string, excludes []string) (bool, string, error) {
@@ -46,32 +50,38 @@ func CheckExclude(pathfile string, excludes []string) (bool, string, error) {
 	return false, "", err
 }
 
-func (aVisitor visitor) visit(path string, f os.FileInfo, err error) error {
+func (aRootedDirMap RootedDirMap) visit(path string, f os.FileInfo, err error) error {
 	path = filepath.ToSlash(path)
 	log.Trace.Printf("Visiting: %s  name: %s  size:%d modified:%s isDir:%t\n", path, f.Name(), f.Size(), f.ModTime().Format(defaultFormat), f.IsDir())
 	steps := strings.Split(path, string("/"))
 	log.Trace.Println("Steps are: ", steps)
+	relpath := path[len(aRootedDirMap.rootDir):]
+	if len(relpath) == 0 {
+		relpath = "/"
+	}
 
 	// Check if not excluded
-	if excluded, _, _ := CheckExclude(path, aVisitor.excludes); !excluded {
+	if excluded, _, _ := CheckExclude(path, aRootedDirMap.excludes); !excluded {
 		if f.IsDir() {
-			if aDir, ok := aVisitor.aDirMap[path]; !ok {
-				log.Trace.Printf("Adding dir %s to dirMap\n", path)
+			if aDir, ok := aRootedDirMap.aDirMap[path]; !ok {
+				log.Trace.Printf("Adding dir %s + rel dir %s to dirMap\n", path, relpath)
 				aDir = new(Dir)
 				aDir.Path = path
-				aDir.Files = make(map[string]afile)
+				aDir.RelPath = relpath
+				aDir.Files = make(map[string]Afile)
 				aDir.DModDate = f.ModTime()
-				aVisitor.aDirMap[path] = aDir
+				aDir.Present = true
+				aRootedDirMap.aDirMap[relpath] = aDir
 			} else {
-				log.Trace.Printf("Existing dir %s", path)
+				log.Trace.Printf("Existing dir %s", relpath)
 			}
 		} else {
-			theDirname := filepath.ToSlash(filepath.Dir(path))
-			afile := afile{f.Name(), f.Size(), f.ModTime()}
+			theDirname := filepath.ToSlash(filepath.Dir(relpath))
+			afile := Afile{f.Name(), f.Size(), f.ModTime(), true}
 			log.Trace.Printf("Adding file %s to dir %s\n", afile, theDirname)
-			if _, ok := aVisitor.aDirMap[theDirname].Files[afile.Name]; !ok {
+			if _, ok := aRootedDirMap.aDirMap[theDirname].Files[afile.Name]; !ok {
 				log.Trace.Printf("Adding %s (size %d,  ModTime %s) to dir %s\n", f.Name(), f.Size(), f.ModTime(), theDirname)
-				aVisitor.aDirMap[theDirname].Files[afile.Name] = afile
+				aRootedDirMap.aDirMap[theDirname].Files[afile.Name] = afile
 			} else {
 				log.Fatal.Printf("Existing file: %s in %s\n", f.Name(), theDirname)
 			}
@@ -147,9 +157,8 @@ func Retrieve(pathfile *string, aDirMap DirMap) {
 	}
 }
 
-func FillDirMap(rootPath *string, excludes []string, aDirMap DirMap) error {
-	aVisitor := visitor{aDirMap, excludes}
-	err := filepath.Walk(*rootPath, aVisitor.visit)
+func FillDirMap(aRootedDirMap RootedDirMap) error {
+	err := filepath.Walk(aRootedDirMap.rootDir, aRootedDirMap.visit)
 	return err
 }
 
