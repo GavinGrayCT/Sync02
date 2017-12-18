@@ -1,0 +1,40 @@
+[
+   {
+      "RelPath": "dir1",
+      "Name": "fname1.txt",
+      "Lf": {
+         "Present": true,
+         "Mtime": "2017-07-01T10:11:12.123456789Z",
+         "Contents": "Donkey1"
+      },
+      "Rf": {
+         "Present": true,
+         "Mtime": "2017-07-01T10:11:12.123456789Z",
+         "Contents": "Donkey"
+      },
+      "Of": {
+         "Present": true,
+         "Mtime": "2017-07-01T10:11:12.123456789Z",
+         "Contents": "Donkey"
+      }
+   },
+   {
+      "RelPath": "dir2",
+      "Name": "fname2.txt",
+      "Lf": {
+         "Present": true,
+         "Mtime": "2017-07-01T10:11:12.123456789Z",
+         "Contents": "Donkey2"
+      },
+      "Rf": {
+         "Present": true,
+         "Mtime": "2017-07-01T10:11:12.123456789Z",
+         "Contents": "Donkey"
+      },
+      "Of": {
+         "Present": true,
+         "Mtime": "2017-07-01T10:11:12.123456789Z",
+         "Contents": "Donkey"
+      }
+   }
+]

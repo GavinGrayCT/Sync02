@@ -1,0 +1,15 @@
+{
+   "LocalWorkspace": "config/conf.LocalWorkspace",
+   "RemovableWorkspace": "conf.RemovableWorkspace",
+   "RemovableRoot": "conf.RemovableRoot",
+   "LocalRoots": [
+      {
+         "Include": "aLocalRoot.Include",
+         "Excludes": [
+            "exclude1",
+            "exclude2"
+         ]
+      }
+   ],
+   "Hostname": "conf.Hostname"
+}

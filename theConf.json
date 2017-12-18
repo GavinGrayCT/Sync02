@@ -1,0 +1,20 @@
+{
+   "LocalWorkspace": "c:/Users/Gavin/6Saxon/junk/Sync01/LocalA/PcSyncWkSp",
+   "RemovableWorkspace": "c:/Users/Gavin/6Saxon/junk/Sync01/Removable/PcSyncWkSp",
+   "LocalRoots": [
+      {
+         "Include": "c:/Users/Gavin/6Saxon/junk/SyncDataTestData/LocalFiles",
+         "Excludes": [
+            "c:/Users/Gavin/6Saxon/junk/Sync01"
+         ]
+      }
+   ],
+   "RemovableRoots": [
+      {
+         "Include": "c:/Users/Gavin/6Saxon/junk/SyncDataTestData/RemovableFiles",
+         "Excludes": [
+            "c:/Users/Gavin/6Saxon/junk/Sync01"
+         ]
+      }
+   ]
+}

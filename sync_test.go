@@ -28,20 +28,20 @@ var testConf su.Conf
 
 var time1 = time.Date(2017, 7, 1, 10, 11, 12, 123456789, time.UTC)
 
-var theFileTestSet = []FileTestSet{
-	{"dir1", "fname1.txt", File{true, time1, "Donkey1"}, File{true, time1, "Donkey"}, File{true, time1, "Donkey"}},
-	{"dir2", "fname2.txt", File{true, time1, "Donkey2"}, File{true, time1, "Donkey"}, File{true, time1, "Donkey"}},
-	}
+var theFileTestSet []FileTestSet
 
 func init() {
+	var err error
 	log.Init(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr, os.Stderr)
 	log.Init(os.Stdout, os.Stdout, os.Stdout, os.Stderr, os.Stderr)
-	testConf.GetTheConf("TestConf.json")
+	err = testConf.GetTheConf("TestConf.json")
+	su.Check(err, "Reading Conf")
+	su.ReadJson("TestFileData.json", &theFileTestSet)
+	su.Check(err, "Reading Testdata")
 }
 
 func TestWriteTestFiles(t *testing.T) {
 	log.Trace.Println("In WriteTestFiles")
-	su.WriteJson("TestFileData.json", theFileTestSet)
 	var err error
 
 	for _, afileTestSet := range theFileTestSet {
