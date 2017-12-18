@@ -2,63 +2,70 @@ package main
 
 import (
 	"testing"
-	su "github.com/GavinGrayCT/SyncFileUtility/Sync02/syncutil"
 	"github.com/GavinGrayCT/SyncFileUtility/Sync02/log"
-	"os"
+	su "github.com/GavinGrayCT/SyncFileUtility/Sync02/syncutil"
+	"time"
 	"io/ioutil"
+	"os"
+	"path"
 )
 
-const tRootPath = "c:\\Users\\Gavin\\6Saxon\\junk"
+type File struct {
+	Present  bool
+	Mtime    time.Time
+	Contents string
+}
 
-//var theConf *su.Conf
+type FileTestSet struct {
+	RelPath string
+	Name    string
+	Lf      File
+	Rf      File
+	Of      File
+}
+
+var testConf su.Conf
+
+var time1 = time.Date(2017, 7, 1, 10, 11, 12, 123456789, time.UTC)
+
+var theFileTestSet = []FileTestSet{
+	{"dir1", "fname1.txt", File{true, time1, "Donkey1"}, File{true, time1, "Donkey"}, File{true, time1, "Donkey"}},
+	{"dir2", "fname2.txt", File{true, time1, "Donkey2"}, File{true, time1, "Donkey"}, File{true, time1, "Donkey"}},
+	}
 
 func init() {
 	log.Init(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr, os.Stderr)
 	log.Init(os.Stdout, os.Stdout, os.Stdout, os.Stderr, os.Stderr)
+	testConf.GetTheConf("TestConf.json")
 }
 
-func printOutDirMap(aDirMap *su.DirMapEx) {
-	log.Trace.Printf("Printing out dirMap\n")
-	for _, aDir := range aDirMap.Dirmap {
-		log.Trace.Printf("Dir %s\n", aDir.Path)
-		for _, aFile := range aDir.Files {
-			log.Trace.Printf("File %s\n", aFile.Name)
-		}
-	}
-}
-
-func removeFileFromDirMap(aDirMap *su.DirMapEx) {
-	log.Trace.Printf("removeFileFromDirMap\n")
-	for _, aDir := range aDirMap.Dirmap {
-		if _, ok := aDir.Files["WiredTigerLog.0000000001"]; ok {
-			delete(aDir.Files, "WiredTigerLog.0000000001")
-			log.Trace.Println("Removed WiredTigerLog.0000000001")
-		}
-	}
-}
-
-func TestConfig1(t *testing.T) {
-	log.Trace.Println("In TestConfig1")
+func TestWriteTestFiles(t *testing.T) {
+	log.Trace.Println("In WriteTestFiles")
+	su.WriteJson("TestFileData.json", theFileTestSet)
 	var err error
 
-	theConf, err = su.GetTheConf("gghome.yaml")
-	if err != nil {
-		log.Error.Println("Error message: ", err)
-	} else {
-		log.Trace.Printf("Config is %s", theConf)
-		log.Trace.Printf("Local Workspace is %s\n", theConf.LocalWorkspace)
-		log.Trace.Printf("Removable Workspace is %s\n", theConf.RemovableWorkspace)
-		for r := range theConf.LocalRoot {
-			log.Trace.Printf("Includes %s\n", theConf.LocalRoot[r].Include)
-			for i := range theConf.LocalRoot[r].Excludes {
-				log.Trace.Printf("Type of exclude is %T\n", i)
-				log.Trace.Printf("Excludes %s\n", theConf.LocalRoot[r].Excludes[i])
-			}
+	for _, afileTestSet := range theFileTestSet {
+		err = writeFile(testConf.LocalRoot.Include, afileTestSet.RelPath, afileTestSet.Name, afileTestSet.Lf)
+		if err != nil {
+			log.Trace.Panicln("Error writing file", err)
+			t.Error("Writing Test Files - false")
 		}
 	}
-	if err != nil {
-		t.Error("Testing getting config - false")
+
+	log.Trace.Println("Done WriteTestFiles")
+}
+func writeFile(lr string, rp string, name string, f File) (err error) {
+	var ap = path.Join(lr, rp)
+	log.Trace.Printf("Writing file. Dir: %s  Filename: %s\n", ap, name)
+	var pf = ap+"/"+name
+	log.Trace.Printf("pf: %s\n", pf)
+	err = os.MkdirAll(ap, 0777)
+	if err == nil {
+		err = ioutil.WriteFile(pf, []byte(f.Contents), 0777)
+		if err == nil {
+			err = os.Chtimes(pf, f.Mtime, f.Mtime)
+		}
 	}
-	log.Trace.Println("Done TestConfig1")
+	return err
 }
 

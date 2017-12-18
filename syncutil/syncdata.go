@@ -31,7 +31,7 @@ type FileStates struct {
 	lorf Afile // last other on removable File
 }
 
-func check(err error, m string) {
+func Check(err error, m string) {
 	if err != nil {
 		log.Fatal.Printf("%s. Error is: %v", m, err)
 	}
@@ -41,22 +41,22 @@ func FillSyncData(configPathFile string) (*SyncData, error) {
 	var err error
 	var TheSyncData SyncData
 	TheSyncData.TheConf.GetTheConf(configPathFile)
-	check(err, "Fatal Error getting config")
+	Check(err, "Fatal Error getting config")
 
 	err = fillCurrentSync(TheSyncData.TheConf.Hostname, TheSyncData.TheConf.LocalRoot, &TheSyncData.CurrentLocalSync)
-	check(err, "Fatal Error filling CurrentLocalSync")
+	Check(err, "Fatal Error filling CurrentLocalSync")
 
 	err = readSyncFromFile(TheSyncData.TheConf.LocalWorkspace+"/"+"LastLocalSync.json", &TheSyncData.LastLocalSync)
-	check(err, "Fatal Error reading LastLocalSync.json")
+	Check(err, "Fatal Error reading LastLocalSync.json")
 
 	err = fillCurrentSync(TheSyncData.TheConf.Hostname, Root{TheSyncData.TheConf.RemovableRoot, []string{}}, &TheSyncData.CurrentRemovableSync)
-	check(err, "Fatal Error filling CurrentRemovableSync")
+	Check(err, "Fatal Error filling CurrentRemovableSync")
 
 	err = readSyncFromFile(TheSyncData.TheConf.RemovableWorkspace+"/"+TheSyncData.TheConf.Hostname+"LastSyncOnRemovable.json", &TheSyncData.LocalLastSyncOnRemovable)
-	check(err, "Fatal Error reading LastSyncOnRemovable.json for host "+TheSyncData.TheConf.Hostname)
+	Check(err, "Fatal Error reading LastSyncOnRemovable.json for host "+TheSyncData.TheConf.Hostname)
 
 	err = readSyncFromFile(TheSyncData.TheConf.RemovableWorkspace+"/"+TheSyncData.TheConf.OtherHostname+"LastSyncOnRemovable.json", &TheSyncData.OtherLastSyncOnRemovable)
-	check(err, "Fatal Error reading LastSyncOnRemovable.json for host "+TheSyncData.TheConf.OtherHostname)
+	Check(err, "Fatal Error reading LastSyncOnRemovable.json for host "+TheSyncData.TheConf.OtherHostname)
 
 	if compare2Sync(TheSyncData.CurrentLocalSync, TheSyncData.LastLocalSync) {
 		log.Trace.Println("Current and Last Local Syncs are identical")
@@ -82,15 +82,15 @@ func fillCurrentSync(hostname string, Root Root, theSync *Sync) error {
 
 func readSyncFromFile(pf string, theSync *Sync) (err error) {
 	log.Trace.Printf("Reading ", pf, "into LastLocalSync")
-	err = readJson(pf, &theSync)
+	err = ReadJson(pf, &theSync)
 	return err
 }
 
 func StoreSync(theSync *Sync, pathFile string) error {
 	j, err := json.MarshalIndent(theSync, "", "   ")
-	check(err, "Error in Json marshall")
+	Check(err, "Error in Json marshall")
 	err = ioutil.WriteFile(pathFile+".json", j, 0644)
-	check(err, "Error in writing to file")
+	Check(err, "Error in writing to file")
 	return err
 }
 
@@ -109,6 +109,8 @@ func compare2Sync(syncA, syncB Sync) (eq bool) {
 func ProcessSyncData(theSyncData *SyncData) {
 	log.Trace.Println("Starting ProcessSyncData")
 	var fs FileStates
+
+	// First base on current local file system
 	for _, aCLD := range theSyncData.CurrentLocalSync.TheDirMap {
 		log.Trace.Println("Dir: ", aCLD.Path)
 		for _, aCLF := range aCLD.Files {
@@ -118,6 +120,18 @@ func ProcessSyncData(theSyncData *SyncData) {
 			AddCommand(aCLD, &fs)
 		}
 	}
+
+	// Now go through removable file system
+	for _, aCRD := range theSyncData.CurrentRemovableSync.TheDirMap {
+		log.Trace.Println("Dir: ", aCRD.Path)
+		for _, aCRF := range aCRD.Files {
+			log.Trace.Println("File: ", aCRF.Name, "  FModDate:", aCRF.FModDate, "  Size:", aCRF.Size, "  Present:", aCRF.Present)
+			fs.populate(aCRD, aCRF, theSyncData)
+			// now process fs
+			AddCommand(aCRD, &fs)
+		}
+	}
+
 }
 
 func (fs *FileStates) populate(cld *Dir, clf Afile, theSyncData *SyncData) {

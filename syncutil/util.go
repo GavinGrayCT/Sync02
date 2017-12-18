@@ -167,3 +167,24 @@ func InitLocalWorkSpace(localWorkSpace string) {
 		fmt.Printf("Creating ", localWorkSpace)
 	}
 }
+
+func WriteJson(fn string, i interface{}) (err error) {
+	j, err := json.MarshalIndent(i, "", "   ")
+	err = ioutil.WriteFile(fn, j, 0644)
+	log.Trace.Println("Written json. Error is: ", err)
+	return err
+}
+
+func ReadJson(pf string, s interface{}) error {
+	j, err := ioutil.ReadFile(pf)
+	if err == nil {
+		err = json.Unmarshal(j, s)
+		if err != nil {
+			log.Error.Printf("Error json unmarshalling %s. Error: %v\n", pf, err)
+		}
+	} else {
+		log.Error.Printf("Error reading file. Error: %v\n", err)
+
+	}
+	return err
+}
